@@ -1,5 +1,3 @@
-from operator import and_
-
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.paginator import Paginator
@@ -20,12 +18,6 @@ class OnlyAuthorMixin(UserPassesTestMixin):
     def test_func(self):
         object = self.get_object()
         return object.author == self.request.user
-    """
-    def handle_no_permission(self):
-        # Перенаправляем на страницу с деталями поста
-        post_id = self.kwargs.get('pk')
-        return redirect(reverse_lazy('blog:post_detail', kwargs={'pk': post_id}))
-    """
 
 
 class PostListView(ListView):
@@ -79,7 +71,8 @@ class PostUpdateView(OnlyAuthorMixin, UpdateView):
     def handle_no_permission(self):
         # Перенаправляем на страницу с деталями поста
         post_id = self.kwargs.get('pk')
-        return redirect(reverse_lazy('blog:post_detail', kwargs={'pk': post_id}))
+        return redirect(reverse_lazy('blog:post_detail',
+                                     kwargs={'pk': post_id}))
 
     def get_success_url(self):
         return reverse('blog:post_detail', kwargs={'pk': self.object.pk})
