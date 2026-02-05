@@ -1,4 +1,5 @@
 from django.contrib.auth.mixins import UserPassesTestMixin
+from django.shortcuts import redirect
 from django.urls import reverse, reverse_lazy
 
 
@@ -8,12 +9,17 @@ class OnlyAuthorMixin(UserPassesTestMixin):
         object = self.get_object()
         return object.author == self.request.user
 
+    def handle_no_permission(self):
+        post_id = self.kwargs.get('post_id')
+        return redirect(reverse_lazy('blog:post_detail',
+                                     kwargs={'post_id': post_id}))
+
 
 class CommentRedirectMixin:
 
     def get_success_url(self):
         return reverse_lazy('blog:post_detail',
-                            kwargs={'pk': self.kwargs['post_id']})
+                            kwargs={'post_id': self.kwargs['post_id']})
 
 
 class ProfileRedirectMixin:

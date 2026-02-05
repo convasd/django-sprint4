@@ -28,16 +28,17 @@ class PostListView(ListView):
         return queryset
 
 
-class PostDetailView(UserPassesTestMixin, DetailView):
+class PostDetailView(DetailView):
 
     model = Post
     template_name = 'blog/detail.html'
+    pk_url_kwarg = 'post_id'
 
-    def test_func(self):
-        post = self.get_object()
+    def get_object(self, queryset=None):
+        post = super().get_object()
         if post.author == self.request.user:
-            return True
-        return get_object_or_404(get_published_posts(), id=post.id)
+            return post
+        return super().get_object(get_published_posts())
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -57,26 +58,24 @@ class PostCreateView (LoginRequiredMixin, ProfileRedirectMixin, CreateView):
         return super().form_valid(form)
 
 
-class PostUpdateView(OnlyAuthorMixin, UpdateView):
+class PostUpdateView(OnlyAuthorMixin, CommentRedirectMixin, UpdateView):
 
     model = Post
     form_class = PostForm
     template_name = 'blog/create.html'
+    pk_url_kwarg = 'post_id'
 
-    def handle_no_permission(self):
-        post_id = self.kwargs.get('pk')
-        return redirect(reverse_lazy('blog:post_detail',
-                                     kwargs={'pk': post_id}))
-
-    def get_success_url(self):
-        return reverse('blog:post_detail',
-                       kwargs={'pk': self.object.pk})
-
-
+    
 class PostDeleteView(OnlyAuthorMixin, ProfileRedirectMixin, DeleteView):
 
     model = Post
     template_name = 'blog/create.html'
+    pk_url_kwarg = 'post_id'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form'] = PostForm(instance=self.object)
+        return context
 
 
 class ProfileDetailView(DetailView):
@@ -100,7 +99,7 @@ class ProfileDetailView(DetailView):
         return context
 
 
-class ProfileUpdateView(LoginRequiredMixin, ProfileRedirectMixin, UpdateView):
+class ProfileUpdateView(LoginRequiredMixin, UpdateView):
 
     model = User
     form_class = ProfileUpdateForm
@@ -108,6 +107,9 @@ class ProfileUpdateView(LoginRequiredMixin, ProfileRedirectMixin, UpdateView):
 
     def get_object(self, queryset=None):
         return self.request.user
+
+    def get_success_url(self):
+        return reverse('blog:profile', args=[self.object.username])
 
 
 class CommentCreateView(LoginRequiredMixin, CommentRedirectMixin, CreateView):
@@ -161,6 +163,7 @@ class CategoryPostsView(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         posts = get_published_posts(self.object.slug).order_by('-pub_date')
+        posts = posts.annotate(comment_count=Count('comment'))
         paginator = Paginator(posts, self.paginate_by)
         page_number = self.request.GET.get('page')
         page_obj = paginator.get_page(page_number)
