@@ -1,10 +1,10 @@
 from django.contrib.auth import get_user_model
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import Paginator
 from django.db.models import Count
 from django.http import Http404
-from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse, reverse_lazy
+from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.views.generic import (CreateView, DeleteView, DetailView, ListView,
                                   UpdateView)
 
@@ -28,16 +28,17 @@ class PostListView(ListView):
         return queryset
 
 
-class PostDetailView(UserPassesTestMixin, DetailView):
+class PostDetailView(DetailView):
 
     model = Post
     template_name = 'blog/detail.html'
+    pk_url_kwarg = 'post_id'
 
-    def test_func(self):
-        post = self.get_object()
+    def get_object(self, queryset=None):
+        post = super().get_object()
         if post.author == self.request.user:
-            return True
-        return get_object_or_404(get_published_posts(), id=post.id)
+            return post
+        return super().get_object(get_published_posts())
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -62,21 +63,14 @@ class PostUpdateView(OnlyAuthorMixin, CommentRedirectMixin, UpdateView):
     model = Post
     form_class = PostForm
     template_name = 'blog/create.html'
-
-    def handle_no_permission(self):
-        post_id = self.kwargs.get('pk')
-        return redirect(reverse_lazy('blog:post_detail',
-                                     kwargs={'pk': post_id}))
-
-    def get_success_url(self):
-        return reverse('blog:post_detail',
-                       kwargs={'pk': self.object.pk})
+    pk_url_kwarg = 'post_id'
 
 
 class PostDeleteView(OnlyAuthorMixin, ProfileRedirectMixin, DeleteView):
 
     model = Post
     template_name = 'blog/create.html'
+    pk_url_kwarg = 'post_id'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -169,6 +163,7 @@ class CategoryPostsView(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         posts = get_published_posts(self.object.slug).order_by('-pub_date')
+        posts = posts.annotate(comment_count=Count('comment'))
         paginator = Paginator(posts, self.paginate_by)
         page_number = self.request.GET.get('page')
         page_obj = paginator.get_page(page_number)
